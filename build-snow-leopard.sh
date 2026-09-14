@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -eu
+
+MACPORTS_PREFIX=${MACPORTS_PREFIX:-/opt/local}
+LLVM_PREFIX=${LLVM_PREFIX:-$MACPORTS_PREFIX/libexec/llvm-16}
+CXX=${CXX:-$MACPORTS_PREFIX/bin/clang++-mp-16}
+GMAKE=${GMAKE:-$MACPORTS_PREFIX/bin/gmake}
+
+exec "$GMAKE" -j1 \
+	CXX="$CXX" \
+	GPU_SUPPORT=false \
+	SNOW_LEOPARD=true \
+	MACPORTS_PREFIX="$MACPORTS_PREFIX" \
+	LLVM_PREFIX="$LLVM_PREFIX" \
+	ARCH=i386 \
+	THREADS=1 \
+	OPTFLAGS=-O1 \
+	FORTIFY_SOURCE=false \
+	"$@"

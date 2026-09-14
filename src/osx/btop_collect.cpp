@@ -1222,7 +1222,9 @@ namespace Mem {
 		mach_msg_type_number_t info_size = HOST_VM_INFO64_COUNT;
 		if (host_statistics64(mach_host_self(), HOST_VM_INFO64, (host_info64_t)&p, &info_size) == 0) {
 			mem.stats.at("free") = p.free_count * Shared::pageSize;
-			mem.stats.at("cached") = p.external_page_count * Shared::pageSize;
+			// external_page_count was added after the Snow Leopard SDK.
+			// inactive_count is the closest available cached-memory metric on 10.6.
+			mem.stats.at("cached") = p.inactive_count * Shared::pageSize;
 			mem.stats.at("used") = (p.active_count + p.wire_count) * Shared::pageSize;
 			mem.stats.at("available") = Shared::totalMem - mem.stats.at("used");
 		}
@@ -1329,8 +1331,9 @@ namespace Mem {
 					Logger::warning("Failed to get disk/partition stats with statvfs() for: {}", mountpoint);
 					continue;
 				}
-				disk.total = vfs.f_blocks * vfs.f_frsize;
-				disk.free = vfs.f_bfree * vfs.f_frsize;
+				// statvfs counters are 32-bit on i386, so widen before multiplying.
+				disk.total = static_cast<std::uint64_t>(vfs.f_blocks) * static_cast<std::uint64_t>(vfs.f_frsize);
+				disk.free = static_cast<std::uint64_t>(vfs.f_bfree) * static_cast<std::uint64_t>(vfs.f_frsize);
 				disk.used = disk.total - disk.free;
 				if (disk.total != 0) {
 					disk.used_percent = round((double)disk.used * 100 / disk.total);
@@ -1671,12 +1674,18 @@ namespace Proc {
 
 		while (cmp_greater(detailed.mem_bytes.size(), width)) detailed.mem_bytes.pop_front();
 
+#if defined(RUSAGE_INFO_CURRENT)
 		rusage_info_current rusage;
 		if (proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, (void **)&rusage) == 0) {
 			// this fails for processes we don't own - same as in Linux
 			detailed.io_read = floating_humanizer(rusage.ri_diskio_bytesread);
 			detailed.io_write = floating_humanizer(rusage.ri_diskio_byteswritten);
 		}
+#else
+		// proc_pid_rusage and its disk I/O counters are unavailable on 10.6.
+		detailed.io_read = "N/A";
+		detailed.io_write = "N/A";
+#endif
 	}
 
 	//* Collects and sorts process information from /proc

@@ -95,8 +95,16 @@ namespace Term {
 		struct winsize wsize {};
 		if (uses_dev_tty || ioctl(STDOUT_FILENO, TIOCGWINSZ, &wsize) < 0 || (wsize.ws_col == 0 && wsize.ws_row == 0)) {
 			Logger::error(R"(Couldn't determine terminal size of "STDOUT_FILENO"!)");
-			auto dev_tty = open("/dev/tty", O_RDONLY | O_CLOEXEC);
+			auto dev_tty = open("/dev/tty", O_RDONLY
+#if defined(O_CLOEXEC)
+				| O_CLOEXEC
+#endif
+			);
 			if (dev_tty != -1) {
+#if !defined(O_CLOEXEC)
+				const auto descriptor_flags = fcntl(dev_tty, F_GETFD);
+				if (descriptor_flags != -1) fcntl(dev_tty, F_SETFD, descriptor_flags | FD_CLOEXEC);
+#endif
 				ioctl(dev_tty, TIOCGWINSZ, &wsize);
 				close(dev_tty);
 			}

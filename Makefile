@@ -19,6 +19,9 @@ OLDCXX := $(CXXFLAGS)
 OLDLD := $(LDFLAGS)
 
 PREFIX ?= /usr/local
+SNOW_LEOPARD ?= false
+MACPORTS_PREFIX ?= /opt/local
+LLVM_PREFIX ?= $(MACPORTS_PREFIX)/libexec/llvm-16
 
 #? Detect PLATFORM and ARCH from uname/gcc if not set
 PLATFORM ?= $(shell uname -s || echo unknown)
@@ -118,7 +121,12 @@ else ifeq ($(PLATFORM_LC),$(filter $(PLATFORM_LC),freebsd midnightbsd))
 else ifeq ($(PLATFORM_LC),macos)
 	PLATFORM_DIR := osx
 	THREADS	:= $(shell sysctl -n hw.ncpu || echo 1)
-	override ADDFLAGS += -framework IOKit -framework CoreFoundation -lIOReport -Wno-format-truncation
+	override ADDFLAGS += -framework IOKit -framework CoreFoundation -Wno-format-truncation
+	ifeq ($(SNOW_LEOPARD),true)
+		SNOW_LEOPARD_LDFLAGS := -nostdlib++ $(LLVM_PREFIX)/lib/libc++/libc++.a $(LLVM_PREFIX)/lib/libc++/libc++abi.a -L$(MACPORTS_PREFIX)/lib -lMacportsLegacySupport
+	else
+		override ADDFLAGS += -lIOReport
+	endif
 	SU_GROUP := wheel
 else ifeq ($(PLATFORM_LC),openbsd)
 	PLATFORM_DIR := openbsd
@@ -170,12 +178,16 @@ OBJEXT		:= o
 override GOODFLAGS := $(foreach flag,$(TESTFLAGS),$(strip $(shell echo "int main() {}" | $(CXX) -o /dev/null $(flag) -x c++ - >/dev/null 2>&1 && echo $(flag) || true)))
 
 #? Flags, Libraries and Includes
-override REQFLAGS   := -std=c++23
+ifeq ($(SNOW_LEOPARD),true)
+	override REQFLAGS := -std=c++2b
+else
+	override REQFLAGS := -std=c++23
+endif
 WARNFLAGS			:= -Wall -Wextra -pedantic
 OPTFLAGS			:= -O2 $(LTO)
 LDCXXFLAGS			:= -pthread -DFMT_HEADER_ONLY -D_GLIBCXX_ASSERTIONS -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG -D_FILE_OFFSET_BITS=64 $(GOODFLAGS) $(ADDFLAGS)
 override CXXFLAGS	+= $(REQFLAGS) $(LDCXXFLAGS) $(OPTFLAGS) $(WARNFLAGS)
-override LDFLAGS	+= $(LDCXXFLAGS) $(OPTFLAGS) $(WARNFLAGS)
+override LDFLAGS	+= $(LDCXXFLAGS) $(OPTFLAGS) $(WARNFLAGS) $(SNOW_LEOPARD_LDFLAGS)
 INC					:= $(foreach incdir,$(INCDIRS),-isystem $(incdir)) -I$(SRCDIR) -I$(BUILDDIR)
 SU_USER				:= root
 
