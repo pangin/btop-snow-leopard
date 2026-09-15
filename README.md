@@ -3,7 +3,8 @@
 > [!NOTE]
 > This repository includes a tested backport of btop 1.4.7 for Mac OS X Snow
 > Leopard 10.6.8 on i386. See [SNOW_LEOPARD.md](SNOW_LEOPARD.md) for the exact
-> toolchain, build command, compatibility changes, and known limitations.
+> toolchain, build command, compatibility changes, and known limitations. The
+> historical release work is tracked in [BACKPORT_MATRIX.md](BACKPORT_MATRIX.md).
 
 <a href="https://repology.org/project/btop/versions">
     <img src="https://repology.org/badge/vertical-allrepos/btop.svg" alt="Packaging status" align="right">
