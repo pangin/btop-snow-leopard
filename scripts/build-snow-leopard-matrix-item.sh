@@ -50,7 +50,7 @@ sh ./build-snow-leopard.sh 2>&1 | tee "$result_dir/build.log"
 
 "$script_dir/verify-snow-leopard-build.sh" "$source_dir" "$tag" "$result_dir"
 
-python "$script_dir/smoke-test-snow-leopard.py" \
+/usr/bin/python "$script_dir/smoke-test-snow-leopard.py" \
 	"$source_dir/bin/btop" \
 	"$result_dir/runtime-config" \
 	"$result_dir/runtime.log" \
