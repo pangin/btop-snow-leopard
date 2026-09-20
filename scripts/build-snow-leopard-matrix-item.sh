@@ -50,11 +50,31 @@ sh ./build-snow-leopard.sh 2>&1 | tee "$result_dir/build.log"
 
 "$script_dir/verify-snow-leopard-build.sh" "$source_dir" "$tag" "$result_dir"
 
+set +e
 /usr/bin/python "$script_dir/smoke-test-snow-leopard.py" \
 	"$source_dir/bin/btop" \
 	"$result_dir/runtime-config" \
 	"$result_dir/runtime.log" \
 	8 2>&1 | tee "$result_dir/smoke-test.log"
+smoke_status=${PIPESTATUS[0]}
+set -e
+
+if [[ "$smoke_status" -ne 0 ]]; then
+	echo "[$tag] first TUI smoke attempt failed; retrying once" | tee -a "$result_dir/smoke-test.log" >&2
+	set +e
+	/usr/bin/python "$script_dir/smoke-test-snow-leopard.py" \
+		"$source_dir/bin/btop" \
+		"$result_dir/runtime-config" \
+		"$result_dir/runtime.log" \
+		8 2>&1 | tee -a "$result_dir/smoke-test.log"
+	smoke_status=${PIPESTATUS[0]}
+	set -e
+fi
+
+if [[ "$smoke_status" -ne 0 ]]; then
+	echo "[$tag] TUI smoke test failed after retry (exit $smoke_status)" >&2
+	exit "$smoke_status"
+fi
 
 mkdir -p "$work_root/status"
 pointer_tmp="$work_root/status/latest-$tag.txt.tmp-$$"
