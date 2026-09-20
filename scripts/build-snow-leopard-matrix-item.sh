@@ -46,7 +46,7 @@ cd "$source_dir"
 
 echo "[$tag] build directory: $run_dir"
 echo "[$tag] compiling on $(sw_vers -productVersion) $(uname -m)"
-./build-snow-leopard.sh 2>&1 | tee "$result_dir/build.log"
+sh ./build-snow-leopard.sh 2>&1 | tee "$result_dir/build.log"
 
 "$script_dir/verify-snow-leopard-build.sh" "$source_dir" "$tag" "$result_dir"
 
