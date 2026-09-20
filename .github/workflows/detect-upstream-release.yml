@@ -24,6 +24,7 @@ jobs:
       - name: Check out the backport tooling
         uses: actions/checkout@v4
         with:
+          ref: snow-leopard
           fetch-depth: 0
 
       - name: Resolve upstream release and existing backport
