@@ -1,0 +1,113 @@
+name: Detect upstream btop release
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      upstream_tag:
+        description: 'Optional upstream tag to prepare (for example v1.4.7)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  detect-and-prepare:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out the backport tooling
+        uses: actions/checkout@v4
+        with:
+          ref: snow-leopard
+          fetch-depth: 0
+
+      - name: Resolve upstream release and existing backport
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.upstream_tag }}
+        run: |
+          $tag = $env:REQUESTED_TAG
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = (gh api repos/aristocratos/btop/releases/latest --jq .tag_name).Trim()
+          }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Upstream release tag is not a stable semver tag: $tag"
+          }
+
+          $backportTag = "$tag-snow-leopard.1"
+          git ls-remote --exit-code origin "refs/tags/$backportTag" *> $null
+          $alreadyPublished = ($LASTEXITCODE -eq 0)
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "backport_tag=$backportTag" >> $env:GITHUB_OUTPUT
+          "already_published=$($alreadyPublished.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "Upstream tag: $tag"
+          Write-Host "Backport tag: $backportTag"
+          Write-Host "Already published: $alreadyPublished"
+
+      - name: Fetch upstream source
+        if: steps.release.outputs.already_published != 'true'
+        env:
+          UPSTREAM_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          git remote add upstream https://github.com/aristocratos/btop.git
+          git fetch --no-tags upstream "refs/tags/$($env:UPSTREAM_TAG):refs/tags/$($env:UPSTREAM_TAG)"
+          if ([version]$env:UPSTREAM_TAG.TrimStart('v') -lt [version]'1.1.0') {
+            # The legacy v1.0.x preparation path transplants the official
+            # macOS backend from this upstream commit.
+            git fetch --no-tags upstream main
+          }
+
+      - name: Prepare Snow Leopard source archive
+        if: steps.release.outputs.already_published != 'true'
+        env:
+          UPSTREAM_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          $output = Join-Path $PWD 'out\source'
+          ./scripts/New-SourceMatrix.ps1 -Tags $env:UPSTREAM_TAG -OutputPath $output
+
+      - name: Upload prepared source
+        if: steps.release.outputs.already_published != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: btop-${{ steps.release.outputs.tag }}-snow-leopard-source
+          path: out/source
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Open a backport issue when a release is new
+        if: steps.release.outputs.already_published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_TAG: ${{ steps.release.outputs.tag }}
+          BACKPORT_TAG: ${{ steps.release.outputs.backport_tag }}
+        run: |
+          $existing = @(gh issue list --state open --search "[backport] $env:UPSTREAM_TAG in:title" --json number,title | ConvertFrom-Json)
+          if ($existing.Count -ne 0) {
+            Write-Host "An open tracking issue already exists: #$($existing[0].number)"
+            exit 0
+          }
+
+          $runUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          $body = @"
+          A new upstream btop release was detected: [$env:UPSTREAM_TAG](https://github.com/aristocratos/btop/releases/tag/$env:UPSTREAM_TAG).
+
+          The Snow Leopard source archive was prepared by the [detector run]($runUrl). Download its artifact, build it on the Mac OS X 10.6.8 i386 target, and attach the resulting evidence before publishing $env:BACKPORT_TAG.
+
+          Checklist:
+          - [ ] Build with the pinned Clang 16/static libc++ toolchain.
+          - [ ] Run the binary and verify the TUI on the actual Snow Leopard Mac.
+          - [ ] Capture source/binary SHA-256 values and runtime evidence.
+          - [ ] Create the matching source and binary release assets.
+          - [ ] Confirm the machine's installed btop remains on the newest verified release.
+
+          This workflow deliberately does not publish an unverified binary.
+          "@
+          $body | Set-Content -LiteralPath issue-body.md -Encoding utf8
+          gh issue create --title "[backport] $env:UPSTREAM_TAG" --body-file issue-body.md
