@@ -392,6 +392,78 @@ if ($config.Contains('static constexpr auto get_xdg_state_dir()')) {
 	Write-SourceFile 'src/btop_config.cpp' $config
 }
 
+# iTerm2 2.x, the last iTerm2 for Mac OS X 10.6, cannot display 24-bit color:
+# it applies the R;G;B of SGR 38;2;R;G;B as plain attributes (0 reset, 1 bold,
+# 4 underline, 7 inverse). Detect it and force btop's 256-color path, both at
+# startup and when the truecolor option is toggled in the options menu.
+function Replace-SingleLine([string] $Content, [string] $Pattern, [string] $Replacement, [string] $Description) {
+	$found = [regex]::Matches($Content, $Pattern).Count
+	if ($found -ne 1) {
+		throw "Could not apply required transformation: $Description (expected 1 match, found $found)"
+	}
+	return [regex]::Replace($Content, $Pattern, $Replacement)
+}
+
+$legacyItermForce = '${1}if (Term::legacy_iterm2()) Config::set("lowcolor", true);'
+
+$toolsHpp = Read-SourceFile 'src/btop_tools.hpp'
+if (-not $toolsHpp.Contains('bool legacy_iterm2();')) {
+	$toolsHpp = Replace-Required $toolsHpp "`tvoid restore();`n}" "`tvoid restore();`n`n`t//* Returns true under iTerm2 2.x, which cannot display 24-bit color`n`tbool legacy_iterm2();`n}" 'iTerm2 2.x detection declaration'
+	Write-SourceFile 'src/btop_tools.hpp' $toolsHpp
+}
+
+$toolsCpp = Read-SourceFile 'src/btop_tools.cpp'
+if (-not $toolsCpp.Contains('bool legacy_iterm2() {')) {
+	if (-not $toolsCpp.Contains('#include <cstdlib>')) {
+		$toolsCpp = Replace-Required $toolsCpp '#include <utility>' "#include <utility>`n#include <cstdlib>" 'getenv declaration'
+	}
+	$legacyItermDefinition = @'
+
+	bool legacy_iterm2() {
+		//? iTerm2 2.x, the last iTerm2 for Mac OS X 10.6, sets TERM_PROGRAM=iTerm.app without
+		//? TERM_PROGRAM_VERSION; 3.x sets both. 2.x reads SGR 38/48 only as 38;5;N and applies
+		//? the R;G;B of 38;2;R;G;B as plain attributes (0 reset, 1 bold, 4 underline, 7 inverse).
+		const char* program = std::getenv("TERM_PROGRAM");
+		const char* version = std::getenv("TERM_PROGRAM_VERSION");
+		return program != nullptr and std::string_view(program) == "iTerm.app"
+			and (version == nullptr or version[0] == '\0');
+	}
+'@
+	$toolsCpp = Replace-SingleLine $toolsCpp '(?m)^\}\n\n(?=//\? -+ FUNCTIONS)' ($legacyItermDefinition.Replace('$', '$$') + "`n}`n`n") 'iTerm2 2.x detection'
+	Write-SourceFile 'src/btop_tools.cpp' $toolsCpp
+}
+
+$btop = Read-SourceFile 'src/btop.cpp'
+if (-not $btop.Contains('Term::legacy_iterm2()')) {
+	$startupPattern = '(?m)^(\t+)(Config::set\("lowcolor", \((?:Global::arg_)?low_color \? true : not Config::getB\("truecolor"\)\)\);)$'
+	$btop = Replace-SingleLine $btop $startupPattern ('${1}${2}' + "`n" + $legacyItermForce) 'iTerm2 2.x startup color mode'
+	Write-SourceFile 'src/btop.cpp' $btop
+}
+
+$menu = Read-SourceFile 'src/btop_menu.cpp'
+if (-not $menu.Contains('Term::legacy_iterm2()')) {
+	$togglePattern = '(?m)^(\t+)(Config::flip\("lowcolor"\);)$'
+	$menu = Replace-SingleLine $menu $togglePattern ('${1}${2}' + "`n" + $legacyItermForce) 'iTerm2 2.x truecolor toggle'
+	Write-SourceFile 'src/btop_menu.cpp' $menu
+}
+
+# The main menu builds its six label colors without consulting lowcolor, so it
+# sent 24-bit SGR even under --low-color. Pass the color mode like the rest of
+# btop does.
+$menu = Read-SourceFile 'src/btop_menu.cpp'
+$mainMenuColorPattern = 'Theme::hex_to_color\((Global::Banner_src\.at\([024]\)\.at\(0\)|"#(?:CC|AA|80)")\)'
+$found = [regex]::Matches($menu, $mainMenuColorPattern).Count
+if ($found -gt 0) {
+	if ($found -ne 6) {
+		throw "Could not apply required transformation: main menu low-color labels (expected 6 matches, found $found)"
+	}
+	$menu = [regex]::Replace($menu, $mainMenuColorPattern, 'Theme::hex_to_color(${1}, Config::getB("lowcolor"))')
+	Write-SourceFile 'src/btop_menu.cpp' $menu
+}
+elseif (-not $menu.Contains('Theme::hex_to_color("#CC", Config::getB("lowcolor"))')) {
+	throw 'Could not apply required transformation: main menu low-color labels (no known form found)'
+}
+
 $buildScript = @'
 #!/bin/sh
 
@@ -431,7 +503,9 @@ The build statically links the modern libc++ and libc++abi archives included
 with Clang 16. GPU metrics and detailed per-process disk I/O are unavailable on
 Snow Leopard. The source also includes fixes for the 10.6 VM API, socket header
 ordering, `O_CLOEXEC`, Clang runner signalling and terminal input, and 32-bit
-disk-size overflow where applicable.
+disk-size overflow where applicable. Under iTerm2 2.x (`TERM_PROGRAM=iTerm.app`
+without `TERM_PROGRAM_VERSION`) it uses 256 colors, because that terminal
+cannot display 24-bit color, and the main menu honors `--low-color`.
 
 @BACKEND_PROVENANCE@
 '@

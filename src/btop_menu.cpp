@@ -1214,14 +1214,14 @@ namespace Menu {
 			bg = Draw::banner_gen(y, 0, true);
 			if (not tty_mode) {
 				colors_selected = {
-					Theme::hex_to_color(Global::Banner_src.at(0).at(0)),
-					Theme::hex_to_color(Global::Banner_src.at(2).at(0)),
-					Theme::hex_to_color(Global::Banner_src.at(4).at(0))
+					Theme::hex_to_color(Global::Banner_src.at(0).at(0), Config::getB("lowcolor")),
+					Theme::hex_to_color(Global::Banner_src.at(2).at(0), Config::getB("lowcolor")),
+					Theme::hex_to_color(Global::Banner_src.at(4).at(0), Config::getB("lowcolor"))
 				};
 				colors_normal = {
-					Theme::hex_to_color("#CC"),
-					Theme::hex_to_color("#AA"),
-					Theme::hex_to_color("#80")
+					Theme::hex_to_color("#CC", Config::getB("lowcolor")),
+					Theme::hex_to_color("#AA", Config::getB("lowcolor")),
+					Theme::hex_to_color("#80", Config::getB("lowcolor"))
 				};
 			}
 		}
@@ -1483,6 +1483,7 @@ static int optionsMenu(const string& key) {
 				if (option == "truecolor") {
 					theme_refresh = true;
 					Config::flip("lowcolor");
+					if (Term::legacy_iterm2()) Config::set("lowcolor", true);
 				}
 			#if !defined(__APPLE__) && !defined(__OpenBSD__) && !defined(__NetBSD__)
 				else if (option == "force_tty" and not Term::current_tty.starts_with("/dev/tty")) {

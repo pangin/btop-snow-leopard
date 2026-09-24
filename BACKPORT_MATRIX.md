@@ -17,9 +17,10 @@ The v1.0.0-v1.4.6 source matrix is generated with:
 
 The generator checks every prepared tree for the Snow Leopard VM field,
 process-I/O guard, 32-bit disk-size widening, unavailable IOReport linkage,
-Clang runner signalling, terminal input, C++23 flag spelling, and
-`ranges::to` use in macOS-compiled sources. It writes JSON and tab-separated
-SHA-256 source manifests alongside the generated archives.
+Clang runner signalling, terminal input, C++23 flag spelling, the iTerm2 2.x
+256-color fallback, low-color main-menu labels, and `ranges::to` use in
+macOS-compiled sources. It writes JSON and tab-separated SHA-256 source
+manifests alongside the generated archives.
 
 Version-specific binaries and tags are published only after compiling and
 running them on the actual Mac OS X 10.6.8 i386 target. A generated source

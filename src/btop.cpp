@@ -333,6 +333,7 @@ void init_config(bool low_color, std::optional<std::string>& filter) {
 	vector<string> load_warnings;
 	Config::load(Config::conf_file, load_warnings);
 	Config::set("lowcolor", (low_color ? true : not Config::getB("truecolor")));
+	if (Term::legacy_iterm2()) Config::set("lowcolor", true);
 
 	static bool first_init = true;
 

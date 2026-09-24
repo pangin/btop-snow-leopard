@@ -154,6 +154,9 @@ namespace Term {
 
 	//* Restore terminal options
 	void restore();
+
+	//* Returns true under iTerm2 2.x, which cannot display 24-bit color
+	bool legacy_iterm2();
 }
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------

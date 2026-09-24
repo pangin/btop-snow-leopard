@@ -48,6 +48,23 @@ function Assert-PreparedTree([string] $Path, [string] $Tag) {
 	if ($btop.Contains('std::binary_semaphore') -and -not $btop.Contains('#include <semaphore>')) {
 		throw "$Tag uses std::binary_semaphore without a top-level semaphore include."
 	}
+	$legacyItermForce = 'if (Term::legacy_iterm2()) Config::set("lowcolor", true);'
+	if (-not $btop.Contains($legacyItermForce)) {
+		throw "$Tag has no iTerm2 2.x 256-color fallback at startup."
+	}
+	$menu = [IO.File]::ReadAllText((Join-Path $Path 'src/btop_menu.cpp'))
+	if (-not $menu.Contains($legacyItermForce)) {
+		throw "$Tag has no iTerm2 2.x 256-color fallback in the truecolor option."
+	}
+	$menuColorCalls = [regex]::Matches($menu, 'Theme::hex_to_color\(').Count
+	$menuLowColorCalls = [regex]::Matches($menu, 'Theme::hex_to_color\([^\n]*, Config::getB\("lowcolor"\)\)').Count
+	if ($menuColorCalls -eq 0 -or $menuColorCalls -ne $menuLowColorCalls) {
+		throw "$Tag has menu colors that ignore lowcolor."
+	}
+	$tools = [IO.File]::ReadAllText((Join-Path $Path 'src/btop_tools.cpp'))
+	if (-not $tools.Contains('bool legacy_iterm2() {') -or -not $tools.Contains('#include <cstdlib>')) {
+		throw "$Tag has no iTerm2 2.x detection."
+	}
 
 	$osxPath = Join-Path $Path 'src/osx/btop_collect.cpp'
 	$osx = [IO.File]::ReadAllText($osxPath)

@@ -188,6 +188,16 @@ namespace Term {
 			initialized = false;
 		}
 	}
+
+	bool legacy_iterm2() {
+		//? iTerm2 2.x, the last iTerm2 for Mac OS X 10.6, sets TERM_PROGRAM=iTerm.app without
+		//? TERM_PROGRAM_VERSION; 3.x sets both. 2.x reads SGR 38/48 only as 38;5;N and applies
+		//? the R;G;B of 38;2;R;G;B as plain attributes (0 reset, 1 bold, 4 underline, 7 inverse).
+		const char* program = std::getenv("TERM_PROGRAM");
+		const char* version = std::getenv("TERM_PROGRAM_VERSION");
+		return program != nullptr and std::string_view(program) == "iTerm.app"
+			and (version == nullptr or version[0] == '\0');
+	}
 }
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------
