@@ -58,13 +58,20 @@ btop
   38/48 only in the `38;5;N` form. For a 24-bit `38;2;R;G;B` it sets no color
   and applies R, G and B as plain attributes (0 resets, 1 bolds, 4 underlines,
   7 inverts), which garbles btop's default truecolor screen. btop detects it
-  the way the terminal identifies itself: `TERM_PROGRAM=iTerm.app` with no
-  `TERM_PROGRAM_VERSION` (iTerm2 3.x sets one). It then takes the same path as
-  `--low-color`, both at startup and when `truecolor` is toggled in the options
-  menu. `truecolor` in `btop.conf` is not rewritten, so the same config still
-  gets 24-bit color under iTerm2 3.x or over SSH.
+  the way the terminal identifies itself: `TERM_PROGRAM=iTerm.app` with
+  `TERM_PROGRAM_VERSION` unset or empty (iTerm2 3.x sets one). It then uses the
+  same 256-color mode as `--low-color`, at startup, on a config reload, and
+  after `truecolor` is toggled in the options menu. The detection never changes
+  `truecolor` in `btop.conf`, so elsewhere btop still follows that setting
+  (24-bit by default). Toggling `truecolor` in the options menu is still saved
+  on exit as before, even though under iTerm2 2.x it has no visible effect.
+  Detection sees only btop's own environment. `ssh` does not pass
+  `TERM_PROGRAM` by default and `sudo` usually drops it, so btop started over
+  SSH from an iTerm2 2.x window, or under `sudo`, is not detected: use
+  `btop --low-color` there.
 - Build the main menu's six label colors (Esc or `m`) with the low-color
-  setting too. Upstream always sent them as 24-bit, even with `--low-color`.
+  setting too. They were sent as 24-bit even with `--low-color` or
+  `truecolor = false`.
 
 ## Verified behavior
 
@@ -82,10 +89,11 @@ them resets). The patched binary sent none, and 1696 256-color codes instead.
 The result was the same with `TERM=xterm-256color`, with an empty
 `TERM_PROGRAM_VERSION`, with the owner's `btop.conf` (`truecolor = true`, left
 unchanged), and after toggling `truecolor` once or twice in the options menu.
-With the main menu open, the previous binary sent 2788 24-bit colors under
-iTerm2 2.0 and 27 under `--low-color`; the patched binary sends none in either
-case. With `TERM_PROGRAM_VERSION` set (iTerm2 3.x), with no `TERM_PROGRAM`
-(SSH), and under Apple Terminal, btop still sends 24-bit color.
+With the main menu open, the previous binary sent 2788 24-bit colors in the
+screen under iTerm2 2.0 and 27 under `--low-color`; the patched binary sends
+none in either case. In the same pty test with `TERM_PROGRAM_VERSION` also set
+(as iTerm2 3.x does), with no `TERM_PROGRAM` (as in a typical SSH session), and
+with Apple Terminal's environment, btop still sent 24-bit color, as before.
 
 GPU metrics are intentionally unavailable. Some per-core temperature sensors
 may display `-1 C` on this hardware; the package CPU temperature reported by
