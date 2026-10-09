@@ -103,6 +103,22 @@ function Assert-PreparedTree([string] $Path, [string] $Tag) {
 	if (-not (Test-Path -LiteralPath (Join-Path $Path 'build-snow-leopard.sh') -PathType Leaf)) {
 		throw "$Tag has no Snow Leopard build script."
 	}
+	$buildScript = [IO.File]::ReadAllText((Join-Path $Path 'build-snow-leopard.sh'))
+	if (-not $buildScript.Contains('STACK_COMPOSER') -or
+		-not $buildScript.Contains('SNOW_LEOPARD_LDFLAGS')) {
+		throw "$Tag does not use the reusable Snow Leopard link stack."
+	}
+	foreach ($relative in @(
+		'toolchains/snow-leopard/compose-link-stack.sh',
+		'toolchains/snow-leopard/relink.sh',
+		'toolchains/snow-leopard/stacks/apple-system-frameworks.sh',
+		'toolchains/snow-leopard/stacks/llvm16-libcxx-static.sh',
+		'toolchains/snow-leopard/stacks/macports-legacy-support.sh'
+	)) {
+		if (-not (Test-Path -LiteralPath (Join-Path $Path $relative) -PathType Leaf)) {
+			throw "$Tag is missing reusable link stack file: $relative"
+		}
+	}
 }
 
 $results = [Collections.Generic.List[object]]::new()

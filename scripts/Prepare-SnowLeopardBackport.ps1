@@ -464,6 +464,20 @@ elseif (-not $menu.Contains('Theme::hex_to_color("#CC", Config::getB("lowcolor")
 	throw 'Could not apply required transformation: main menu low-color labels (no known form found)'
 }
 
+# Keep the linker stack reusable outside btop. These files are copied into
+# every newly prepared source archive so another project can consume the same
+# runtime/link composition without depending on this repository's checkout.
+foreach ($relative in @(
+	'toolchains/snow-leopard/compose-link-stack.sh',
+	'toolchains/snow-leopard/relink.sh',
+	'toolchains/snow-leopard/README.md',
+	'toolchains/snow-leopard/stacks/apple-system-frameworks.sh',
+	'toolchains/snow-leopard/stacks/llvm16-libcxx-static.sh',
+	'toolchains/snow-leopard/stacks/macports-legacy-support.sh'
+)) {
+	Write-SourceFile $relative (Read-GitFile 'HEAD' $relative)
+}
+
 $buildScript = @'
 #!/bin/sh
 
@@ -473,11 +487,18 @@ MACPORTS_PREFIX=${MACPORTS_PREFIX:-/opt/local}
 LLVM_PREFIX=${LLVM_PREFIX:-$MACPORTS_PREFIX/libexec/llvm-16}
 CXX=${CXX:-$MACPORTS_PREFIX/bin/clang++-mp-16}
 GMAKE=${GMAKE:-$MACPORTS_PREFIX/bin/gmake}
-SNOW_LEOPARD_LDFLAGS="-nostdlib++ $LLVM_PREFIX/lib/libc++/libc++.a $LLVM_PREFIX/lib/libc++/libc++abi.a -L$MACPORTS_PREFIX/lib -lMacportsLegacySupport"
+STACK_ROOT=${STACK_ROOT:-$(CDPATH= cd -- "$(dirname "$0")/toolchains/snow-leopard" && pwd)}
+STACK_COMPOSER=${STACK_COMPOSER:-$STACK_ROOT/compose-link-stack.sh}
+SNOW_LEOPARD_LDFLAGS=$(MACPORTS_PREFIX="$MACPORTS_PREFIX" LLVM_PREFIX="$LLVM_PREFIX" \
+	"$STACK_COMPOSER" --stack-dir "$STACK_ROOT/stacks" --stack snow-leopard | tr '\n' ' ')
 
 exec "$GMAKE" -j1 \
 	CXX="$CXX" \
 	GPU_SUPPORT=false \
+	SNOW_LEOPARD=true \
+	MACPORTS_PREFIX="$MACPORTS_PREFIX" \
+	LLVM_PREFIX="$LLVM_PREFIX" \
+	SNOW_LEOPARD_LDFLAGS="$SNOW_LEOPARD_LDFLAGS" \
 	ARCH=i386 \
 	THREADS=1 \
 	OPTFLAGS=-O1 \

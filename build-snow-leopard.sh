@@ -6,6 +6,10 @@ MACPORTS_PREFIX=${MACPORTS_PREFIX:-/opt/local}
 LLVM_PREFIX=${LLVM_PREFIX:-$MACPORTS_PREFIX/libexec/llvm-16}
 CXX=${CXX:-$MACPORTS_PREFIX/bin/clang++-mp-16}
 GMAKE=${GMAKE:-$MACPORTS_PREFIX/bin/gmake}
+STACK_ROOT=${STACK_ROOT:-$(CDPATH= cd -- "$(dirname "$0")/toolchains/snow-leopard" && pwd)}
+STACK_COMPOSER=${STACK_COMPOSER:-$STACK_ROOT/compose-link-stack.sh}
+SNOW_LEOPARD_LDFLAGS=$(MACPORTS_PREFIX="$MACPORTS_PREFIX" LLVM_PREFIX="$LLVM_PREFIX" \
+	"$STACK_COMPOSER" --stack-dir "$STACK_ROOT/stacks" --stack snow-leopard | tr '\n' ' ')
 
 exec "$GMAKE" -j1 \
 	CXX="$CXX" \
@@ -13,6 +17,7 @@ exec "$GMAKE" -j1 \
 	SNOW_LEOPARD=true \
 	MACPORTS_PREFIX="$MACPORTS_PREFIX" \
 	LLVM_PREFIX="$LLVM_PREFIX" \
+	SNOW_LEOPARD_LDFLAGS="$SNOW_LEOPARD_LDFLAGS" \
 	ARCH=i386 \
 	THREADS=1 \
 	OPTFLAGS=-O1 \

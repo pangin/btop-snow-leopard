@@ -33,6 +33,23 @@ MacPorts Clang 16. The resulting binary does not depend on Snow Leopard's old
 sudo ./build-snow-leopard.sh install PREFIX=/opt/local
 ```
 
+The link inputs are composed from reusable stacks in
+`toolchains/snow-leopard`. The same `relink.sh` can link another project's
+objects with the tested Snow Leopard runtime:
+
+```sh
+toolchains/snow-leopard/relink.sh \
+  --compiler /opt/local/bin/clang++-mp-16 \
+  --stack snow-leopard \
+  --output bin/other-project \
+  --objects-file other-project.objects \
+  --validate
+```
+
+Use individual stack names when a project needs only the Apple frameworks,
+static libc++ runtime, or MacPorts LegacySupport layer. `--dry-run` prints the
+composed argv without invoking the linker.
+
 Open a new login shell after installing and run:
 
 ```sh

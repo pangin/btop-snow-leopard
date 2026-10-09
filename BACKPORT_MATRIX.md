@@ -31,6 +31,15 @@ historical tag's core and transplants the official macOS backend merged just
 after v1.0.24 in upstream commit `c0e17a6`; it does not relabel a later binary.
 Every release still has to compile and run independently on the 10.6.8 Mac.
 
+## Reusable link stacks
+
+`toolchains/snow-leopard` separates the tested link inputs into Apple system
+frameworks, static Clang 16 libc++/libc++abi, and MacPorts LegacySupport. Its
+`relink.sh` composes those stacks for btop or any other project's object files;
+the `snow-leopard` profile reproduces the btop link order. The prepared source
+generator copies this kit into newly generated archives so future backports do
+not make the linker setup project-specific.
+
 ## New-release detection
 
 `.github/workflows/detect-upstream-release.yml` checks the official btop
