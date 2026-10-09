@@ -41,9 +41,16 @@ jobs:
             throw "Upstream release tag is not a stable semver tag: $tag"
           }
 
+          $tagRefs = @(git ls-remote --tags origin)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not inspect existing backport tags."
+          }
+          $escapedTag = [regex]::Escape($tag)
+          $backportRefs = @($tagRefs | Where-Object {
+            $_ -match "refs/tags/$escapedTag-snow-leopard\.\d+(\^\{\})?$"
+          })
           $backportTag = "$tag-snow-leopard.1"
-          git ls-remote --exit-code origin "refs/tags/$backportTag" *> $null
-          $alreadyPublished = ($LASTEXITCODE -eq 0)
+          $alreadyPublished = ($backportRefs.Count -gt 0)
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "backport_tag=$backportTag" >> $env:GITHUB_OUTPUT
           "already_published=$($alreadyPublished.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
@@ -88,12 +95,6 @@ jobs:
           UPSTREAM_TAG: ${{ steps.release.outputs.tag }}
           BACKPORT_TAG: ${{ steps.release.outputs.backport_tag }}
         run: |
-          $existing = @(gh issue list --state open --search "[backport] $env:UPSTREAM_TAG in:title" --json number,title | ConvertFrom-Json)
-          if ($existing.Count -ne 0) {
-            Write-Host "An open tracking issue already exists: #$($existing[0].number)"
-            exit 0
-          }
-
           $runUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
           $body = @"
           A new upstream btop release was detected: [$env:UPSTREAM_TAG](https://github.com/aristocratos/btop/releases/tag/$env:UPSTREAM_TAG).
@@ -109,5 +110,29 @@ jobs:
 
           This workflow deliberately does not publish an unverified binary.
           "@
-          $body | Set-Content -LiteralPath issue-body.md -Encoding utf8
-          gh issue create --title "[backport] $env:UPSTREAM_TAG" --body-file issue-body.md
+          $body | Set-Content -LiteralPath detector-notice.md -Encoding utf8
+
+          $existing = @()
+          $issueJson = @(gh issue list --state open --search "[backport] $env:UPSTREAM_TAG in:title" --json number,title 2>&1)
+          if ($LASTEXITCODE -eq 0) {
+            $existing = @((($issueJson -join "`n") | ConvertFrom-Json))
+          }
+          if ($existing.Count -ne 0) {
+            Write-Host "An open tracking issue already exists: #$($existing[0].number)"
+            exit 0
+          }
+
+          $issueOutput = @(gh issue create --title "[backport] $env:UPSTREAM_TAG" --body-file detector-notice.md 2>&1)
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "GitHub issues are unavailable; the detector notice is in the run summary and artifact."
+            $body | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          }
+
+      - name: Upload detector notice
+        if: steps.release.outputs.already_published != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: btop-${{ steps.release.outputs.tag }}-snow-leopard-detector-notice
+          path: detector-notice.md
+          if-no-files-found: ignore
+          retention-days: 30
