@@ -26,6 +26,11 @@ Version-specific binaries and tags are published only after compiling and
 running them on the actual Mac OS X 10.6.8 i386 target. A generated source
 archive alone is not counted as a completed backport.
 
+Run `scripts/Audit-SnowLeopardReleases.ps1` with GitHub CLI authentication to
+compare all 55 upstream versions with the personal repository's release tags
+and required source/binary assets. It exits nonzero while any version is
+missing or incomplete.
+
 The v1.0.x line predates upstream macOS releases. Its generator retains each
 historical tag's core and transplants the official macOS backend merged just
 after v1.0.24 in upstream commit `c0e17a6`; it does not relabel a later binary.
