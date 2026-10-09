@@ -31,6 +31,11 @@ compare all 55 upstream versions with the personal repository's release tags
 and required source/binary assets. It exits nonzero while any version is
 missing or incomplete.
 
+After both target batches finish, use
+`scripts/collect-snow-leopard-manifests.sh` to run the existing evidence
+collector for each source manifest and combine only its verified rows into one
+release manifest for the publisher.
+
 The v1.0.x line predates upstream macOS releases. Its generator retains each
 historical tag's core and transplants the official macOS backend merged just
 after v1.0.24 in upstream commit `c0e17a6`; it does not relabel a later binary.
