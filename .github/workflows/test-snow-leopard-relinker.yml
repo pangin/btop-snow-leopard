@@ -1,0 +1,36 @@
+name: Test reusable Snow Leopard relinker
+
+on:
+  push:
+    branches: [snow-leopard]
+    paths:
+      - 'toolchains/snow-leopard/**'
+      - 'tests/test-snow-leopard-relinker.sh'
+      - '.github/workflows/test-snow-leopard-relinker.yml'
+  pull_request:
+    paths:
+      - 'toolchains/snow-leopard/**'
+      - 'tests/test-snow-leopard-relinker.sh'
+      - '.github/workflows/test-snow-leopard-relinker.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  relinker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out relinker kit
+        uses: actions/checkout@v4
+
+      - name: Check POSIX shell syntax
+        run: |
+          sh -n toolchains/snow-leopard/compose-link-stack.sh
+          sh -n toolchains/snow-leopard/relink.sh
+          sh -n toolchains/snow-leopard/stacks/apple-system-frameworks.sh
+          sh -n toolchains/snow-leopard/stacks/llvm16-libcxx-static.sh
+          sh -n toolchains/snow-leopard/stacks/macports-legacy-support.sh
+          sh -n tests/test-snow-leopard-relinker.sh
+
+      - name: Exercise stack composition and external-project dry-run
+        run: tests/test-snow-leopard-relinker.sh
